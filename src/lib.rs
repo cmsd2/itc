@@ -86,14 +86,18 @@ impl Normalisable for IdTree {
                 return Box::new(self);
             }
             IdTree::Node {left, right} => {
-                if let &IdTree::Leaf{i: i1} = left.as_ref() {
-                    if let &IdTree::Leaf{i: i2} = right.as_ref() {
+                let norm_left = left.norm();
+                let norm_right = right.norm();
+
+                if let &IdTree::Leaf{i: i1} = norm_left.as_ref() {
+                    if let &IdTree::Leaf{i: i2} = norm_right.as_ref() {
                         if i1 == i2 {
-                            return left;
+                            return norm_left;
                         }
                     }
                 }
-                return Box::new(IdTree::Node{left: left, right: right})
+
+                return Box::new(IdTree::Node{left: norm_left, right: norm_right})
             }
         };
     }
@@ -107,28 +111,28 @@ mod tests {
     fn norm_id_one_is_one() {
         let idt = IdTree::one();
         let nidt = idt.norm();
-        assert_eq!(*nidt, IdTree::Leaf{i: true});
+        assert_eq!(*nidt, IdTree::one());
     }
 
     #[test]
     fn norm_id_zero_is_zero() {
         let idt = IdTree::zero();
         let nidt = idt.norm();
-        assert_eq!(*nidt, IdTree::Leaf{i: false});
+        assert_eq!(*nidt, IdTree::zero());
     }
 
     #[test]
     fn norm_id_0_0_is_0() {
         let idt = IdTree::node(Box::new(IdTree::zero()), Box::new(IdTree::zero()));
         let nidt = idt.norm();
-        assert_eq!(*nidt, IdTree::Leaf{i: false});
+        assert_eq!(*nidt, IdTree::zero());
     }
 
     #[test]
     fn norm_id_1_1_is_1() {
         let idt = IdTree::node(Box::new(IdTree::one()), Box::new(IdTree::one()));
         let nidt = idt.norm();
-        assert_eq!(*nidt, IdTree::Leaf{i: true});
+        assert_eq!(*nidt, IdTree::one());
     }
 
     #[test]
@@ -136,5 +140,12 @@ mod tests {
         let idt = IdTree::node(Box::new(IdTree::one()), Box::new(IdTree::zero()));
         let nidt = idt.clone().norm();
         assert_eq!(*nidt, idt);
+    }
+
+    #[test]
+    fn norm_id_1_1_1_is_1() {
+        let idt = IdTree::node(Box::new(IdTree::one()), Box::new(IdTree::node(Box::new(IdTree::one()), Box::new(IdTree::one()))));
+        let nidt = idt.clone().norm();
+        assert_eq!(*nidt, IdTree::one());
     }
 }
