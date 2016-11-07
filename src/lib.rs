@@ -1,3 +1,4 @@
+use std::cmp;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum IdTree {
@@ -10,7 +11,7 @@ pub enum IdTree {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum EventTree {
     Leaf {
         n: u32
@@ -22,7 +23,7 @@ pub enum EventTree {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Stamp {
     i: Box<IdTree>,
     e: Box<EventTree>
@@ -63,6 +64,20 @@ impl EventTree {
             right: right
         }
     }
+
+    pub fn n(&self) -> u32 {
+        match self {
+            &EventTree::Leaf { n } => n,
+            &EventTree::Node { n, .. } => n
+        }
+    }
+
+    pub fn sink(self, m: u32) -> Box<EventTree> {
+        match self {
+            EventTree::Leaf { n } => Box::new(EventTree::leaf(n - m)),
+            EventTree::Node { n, left, right } => Box::new(EventTree::node(n - m, left, right))
+        }
+    }
 }
 
 impl Stamp {
@@ -70,6 +85,19 @@ impl Stamp {
         Stamp {
             i: i,
             e: e
+        }
+    }
+}
+
+pub trait Min<T> {
+    fn min(&self) -> T; 
+}
+
+impl Min<u32> for EventTree {
+    fn min(&self) -> u32 {
+        match *self {
+            EventTree::Leaf{n} => n,
+            EventTree::Node{n, ref left, ref right} => n + cmp::min(left.min(), right.min())
         }
     }
 }
@@ -100,6 +128,36 @@ impl Normalisable for IdTree {
                 return Box::new(IdTree::Node{left: norm_left, right: norm_right})
             }
         };
+    }
+}
+
+impl Normalisable for EventTree {
+    fn norm(self) -> Box<EventTree> {
+        match self {
+            EventTree::Leaf {n: _} => {
+                return Box::new(self);
+            },
+            EventTree::Node {n, left, right} => {
+                let norm_left = left.norm();
+                let norm_right = right.norm();
+
+                if let &EventTree::Leaf{n: m1} = norm_left.as_ref() {
+                    if let &EventTree::Leaf{n: m2} = norm_right.as_ref() {
+                        if m1 == m2 {
+                            return Box::new(EventTree::leaf(n + m1));
+                        }
+                    }
+                }
+
+                // normalised trees have min == n
+                let min_left = norm_left.n();
+                let min_right = norm_right.n();
+
+                let m = cmp::min(min_left, min_right);
+
+                return Box::new(EventTree::node(n + m, norm_left.sink(m), norm_right.sink(m)));
+            }
+        }
     }
 }
 
@@ -147,5 +205,29 @@ mod tests {
         let idt = IdTree::node(Box::new(IdTree::one()), Box::new(IdTree::node(Box::new(IdTree::one()), Box::new(IdTree::one()))));
         let nidt = idt.clone().norm();
         assert_eq!(*nidt, IdTree::one());
+    }
+
+    // (2, 1, 1) ~=~ 3
+    #[test]
+    fn norm_e_one() {
+        let et = EventTree::node(2, Box::new(EventTree::leaf(1)), Box::new(EventTree::leaf(1)));
+        let net = et.clone().norm();
+        assert_eq!(*net, EventTree::leaf(3));
+    }
+
+    // (2, (2, 1, 0), 3) ~=~ (4, (0, 1, 0), 1)
+    #[test]
+    fn norm_e_two() {
+        let a = Box::new(EventTree::node(2, Box::new(EventTree::leaf(1)), Box::new(EventTree::leaf(0))));
+        let b = Box::new(EventTree::leaf(3));
+        let et = EventTree::node(2, a, b);
+
+        let expected_a = Box::new(EventTree::node(0, Box::new(EventTree::leaf(1)), Box::new(EventTree::leaf(0))));
+        let expected_b = Box::new(EventTree::leaf(1));
+        let expected = EventTree::node(4, expected_a, expected_b);
+
+        let net = et.norm();
+
+        assert_eq!(*net, expected);
     }
 }
