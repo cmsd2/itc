@@ -93,11 +93,24 @@ pub trait Min<T> {
     fn min(&self) -> T; 
 }
 
+pub trait Max<T> {
+    fn max(&self) -> T;
+}
+
 impl Min<u32> for EventTree {
     fn min(&self) -> u32 {
         match *self {
             EventTree::Leaf{n} => n,
             EventTree::Node{n, ref left, ref right} => n + cmp::min(left.min(), right.min())
+        }
+    }
+}
+
+impl Max<u32> for EventTree {
+    fn max(&self) -> u32 {
+        match *self {
+            EventTree::Leaf{n} => n,
+            EventTree::Node{n, ref left, ref right} => n + cmp::max(left.max(), right.max())
         }
     }
 }
