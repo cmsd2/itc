@@ -174,6 +174,12 @@ impl Normalisable for EventTree {
     }
 }
 
+impl Normalisable for Stamp {
+    fn norm(self) -> Box<Stamp> {
+        Box::new(Stamp::new(self.i.norm(), self.e.norm()))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
