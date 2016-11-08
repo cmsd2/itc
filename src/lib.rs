@@ -229,6 +229,50 @@ impl LessThanOrEqual for EventTree {
     }
 }
 
+pub trait Split {
+    fn split(&self) -> Box<Self>;
+}
+
+impl Split for IdTree {
+    fn split(&self) -> Box<IdTree> {
+        match *self {
+            IdTree::Leaf {i} => {
+                if i {
+                    Box::new(IdTree::node(Box::new(IdTree::zero()), Box::new(IdTree::zero())))
+                } else {
+                    let new_left = Box::new(IdTree::node(Box::new(IdTree::one()), Box::new(IdTree::zero())));
+                    let new_right = Box::new(IdTree::node(Box::new(IdTree::zero()), Box::new(IdTree::one())));
+                    Box::new(IdTree::node(new_left, new_right))
+                }
+            },
+            IdTree::Node {ref left, ref right} => {
+                if *left.as_ref() == IdTree::zero() {
+                    // split always returns a Node, not a Leaf
+                    if let IdTree::Node{left: i1, right: i2} = *right.split() {
+                        let new_left = Box::new(IdTree::node(Box::new(IdTree::zero()), i1));
+                        let new_right = Box::new(IdTree::node(Box::new(IdTree::zero()), i2));
+                        Box::new(IdTree::node(new_left, new_right))
+                    } else {
+                        unreachable!()
+                    }
+                } else if *right.as_ref() == IdTree::zero() {
+                    if let IdTree::Node{left: i1, right: i2} = *left.split() {
+                        let new_left = Box::new(IdTree::node(i1, Box::new(IdTree::zero())));
+                        let new_right = Box::new(IdTree::node(i2, Box::new(IdTree::zero())));
+                        Box::new(IdTree::node(new_left, new_right))
+                    } else {
+                        unreachable!()
+                    }
+                } else {
+                    let new_left = Box::new(IdTree::node(left.clone(), Box::new(IdTree::zero())));
+                    let new_right = Box::new(IdTree::node(Box::new(IdTree::zero()), right.clone()));
+                    Box::new(IdTree::node(new_left, new_right))
+                }
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
