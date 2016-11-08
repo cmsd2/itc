@@ -72,6 +72,13 @@ impl EventTree {
         }
     }
 
+    pub fn lift(self, m: u32) -> Box<EventTree> {
+        match self {
+            EventTree::Leaf { n } => Box::new(EventTree::leaf(n + m)),
+            EventTree::Node { n, left, right } => Box::new(EventTree::node(n + m, left, right))
+        }
+    }
+
     pub fn sink(self, m: u32) -> Box<EventTree> {
         match self {
             EventTree::Leaf { n } => Box::new(EventTree::leaf(n - m)),
@@ -177,6 +184,48 @@ impl Normalisable for EventTree {
 impl Normalisable for Stamp {
     fn norm(self) -> Box<Stamp> {
         Box::new(Stamp::new(self.i.norm(), self.e.norm()))
+    }
+}
+
+pub trait LessThanOrEqual {
+    fn leq(&self, other: &Self) -> bool;
+}
+
+impl LessThanOrEqual for Stamp {
+    fn leq(&self, other: &Stamp) -> bool {
+        self.e.leq(other.e.as_ref())
+    }
+}
+
+impl LessThanOrEqual for EventTree {
+    #[allow(non_shorthand_field_patterns)]
+    fn leq(&self, other: &EventTree) -> bool {
+        match *self {
+            EventTree::Leaf {n: n1} => {
+                match *other {
+                    EventTree::Leaf {n: n2} => {
+                        n1 <= n2
+                    },
+                    EventTree::Node {n: n2, ..} => {
+                        n1 <= n2
+                    }
+                }
+            },
+            EventTree::Node {n: n1, left: ref left1, right: ref right1} => {
+                match *other {
+                    EventTree::Leaf {n: n2} => {
+                        (n1 <= n2) 
+                        && left1.clone().lift(n1).leq(&EventTree::leaf(n2)) 
+                        && right1.clone().lift(n1).leq(&EventTree::leaf(n2))
+                    },
+                    EventTree::Node {n: n2, left: ref left2, right: ref right2} => {
+                        (n1 <= n2)
+                        && left1.clone().lift(n1).leq(&left2.clone().lift(n2))
+                        && right1.clone().lift(n1).leq(&right2.clone().lift(n2))
+                    }
+                }
+            }
+        }
     }
 }
 
