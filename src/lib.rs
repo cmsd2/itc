@@ -25,8 +25,8 @@ pub enum EventTree {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Stamp {
-    i: Box<IdTree>,
-    e: Box<EventTree>
+    i: IdTree,
+    e: EventTree
 }
 
 impl IdTree {
@@ -51,6 +51,10 @@ impl IdTree {
 }
 
 impl EventTree {
+    pub fn zero() -> EventTree {
+        EventTree::leaf(0)
+    }
+
     pub fn leaf(n: u32) -> EventTree {
         EventTree::Leaf {
             n: n
@@ -72,23 +76,23 @@ impl EventTree {
         }
     }
 
-    pub fn lift(self, m: u32) -> Box<EventTree> {
+    pub fn lift(self, m: u32) -> EventTree {
         match self {
-            EventTree::Leaf { n } => Box::new(EventTree::leaf(n + m)),
-            EventTree::Node { n, left, right } => Box::new(EventTree::node(n + m, left, right))
+            EventTree::Leaf { n } => EventTree::leaf(n + m),
+            EventTree::Node { n, left, right } => EventTree::node(n + m, left, right)
         }
     }
 
-    pub fn sink(self, m: u32) -> Box<EventTree> {
+    pub fn sink(self, m: u32) -> EventTree {
         match self {
-            EventTree::Leaf { n } => Box::new(EventTree::leaf(n - m)),
-            EventTree::Node { n, left, right } => Box::new(EventTree::node(n - m, left, right))
+            EventTree::Leaf { n } => EventTree::leaf(n - m),
+            EventTree::Node { n, left, right } => EventTree::node(n - m, left, right)
         }
     }
 }
 
 impl Stamp {
-    pub fn new(i: Box<IdTree>, e: Box<EventTree>) -> Stamp {
+    pub fn new(i: IdTree, e: EventTree) -> Stamp {
         Stamp {
             i: i,
             e: e
@@ -123,48 +127,48 @@ impl Max<u32> for EventTree {
 }
 
 pub trait Normalisable {
-    fn norm(self) -> Box<Self>;
+    fn norm(self) -> Self;
 }
 
 impl Normalisable for IdTree {
     #[allow(non_shorthand_field_patterns)]
-    fn norm(self) -> Box<IdTree> {
+    fn norm(self) -> IdTree {
         match self {
             IdTree::Leaf {i: _} => {
-                return Box::new(self);
+                return self;
             }
             IdTree::Node {left, right} => {
                 let norm_left = left.norm();
                 let norm_right = right.norm();
 
-                if let &IdTree::Leaf{i: i1} = norm_left.as_ref() {
-                    if let &IdTree::Leaf{i: i2} = norm_right.as_ref() {
+                if let IdTree::Leaf{i: i1} = norm_left {
+                    if let IdTree::Leaf{i: i2} = norm_right {
                         if i1 == i2 {
                             return norm_left;
                         }
                     }
                 }
 
-                return Box::new(IdTree::Node{left: norm_left, right: norm_right})
+                return IdTree::node(Box::new(norm_left), Box::new(norm_right));
             }
         };
     }
 }
 
 impl Normalisable for EventTree {
-    fn norm(self) -> Box<EventTree> {
+    fn norm(self) -> EventTree {
         match self {
             EventTree::Leaf {n: _} => {
-                return Box::new(self);
+                return self;
             },
             EventTree::Node {n, left, right} => {
                 let norm_left = left.norm();
                 let norm_right = right.norm();
 
-                if let &EventTree::Leaf{n: m1} = norm_left.as_ref() {
-                    if let &EventTree::Leaf{n: m2} = norm_right.as_ref() {
+                if let EventTree::Leaf{n: m1} = norm_left {
+                    if let EventTree::Leaf{n: m2} = norm_right {
                         if m1 == m2 {
-                            return Box::new(EventTree::leaf(n + m1));
+                            return EventTree::leaf(n + m1);
                         }
                     }
                 }
@@ -175,15 +179,15 @@ impl Normalisable for EventTree {
 
                 let m = cmp::min(min_left, min_right);
 
-                return Box::new(EventTree::node(n + m, norm_left.sink(m), norm_right.sink(m)));
+                return EventTree::node(n + m, Box::new(norm_left.sink(m)), Box::new(norm_right.sink(m)));
             }
         }
     }
 }
 
 impl Normalisable for Stamp {
-    fn norm(self) -> Box<Stamp> {
-        Box::new(Stamp::new(self.i.norm(), self.e.norm()))
+    fn norm(self) -> Stamp {
+        Stamp::new(self.i.norm(), self.e.norm())
     }
 }
 
@@ -193,7 +197,7 @@ pub trait LessThanOrEqual {
 
 impl LessThanOrEqual for Stamp {
     fn leq(&self, other: &Stamp) -> bool {
-        self.e.leq(other.e.as_ref())
+        self.e.leq(&other.e)
     }
 }
 
@@ -230,43 +234,139 @@ impl LessThanOrEqual for EventTree {
 }
 
 pub trait Split {
-    fn split(&self) -> Box<Self>;
+    fn split(&self) -> Self;
 }
 
 impl Split for IdTree {
-    fn split(&self) -> Box<IdTree> {
+    fn split(&self) -> IdTree {
         match *self {
             IdTree::Leaf {i} => {
                 if i {
-                    Box::new(IdTree::node(Box::new(IdTree::zero()), Box::new(IdTree::zero())))
+                    IdTree::node(Box::new(IdTree::zero()), Box::new(IdTree::zero()))
                 } else {
                     let new_left = Box::new(IdTree::node(Box::new(IdTree::one()), Box::new(IdTree::zero())));
                     let new_right = Box::new(IdTree::node(Box::new(IdTree::zero()), Box::new(IdTree::one())));
-                    Box::new(IdTree::node(new_left, new_right))
+                    IdTree::node(new_left, new_right)
                 }
             },
             IdTree::Node {ref left, ref right} => {
                 if *left.as_ref() == IdTree::zero() {
                     // split always returns a Node, not a Leaf
-                    if let IdTree::Node{left: i1, right: i2} = *right.split() {
+                    if let IdTree::Node{left: i1, right: i2} = right.split() {
                         let new_left = Box::new(IdTree::node(Box::new(IdTree::zero()), i1));
                         let new_right = Box::new(IdTree::node(Box::new(IdTree::zero()), i2));
-                        Box::new(IdTree::node(new_left, new_right))
+                        IdTree::node(new_left, new_right)
                     } else {
                         unreachable!()
                     }
                 } else if *right.as_ref() == IdTree::zero() {
-                    if let IdTree::Node{left: i1, right: i2} = *left.split() {
+                    if let IdTree::Node{left: i1, right: i2} = left.split() {
                         let new_left = Box::new(IdTree::node(i1, Box::new(IdTree::zero())));
                         let new_right = Box::new(IdTree::node(i2, Box::new(IdTree::zero())));
-                        Box::new(IdTree::node(new_left, new_right))
+                        IdTree::node(new_left, new_right)
                     } else {
                         unreachable!()
                     }
                 } else {
                     let new_left = Box::new(IdTree::node(left.clone(), Box::new(IdTree::zero())));
                     let new_right = Box::new(IdTree::node(Box::new(IdTree::zero()), right.clone()));
-                    Box::new(IdTree::node(new_left, new_right))
+                    IdTree::node(new_left, new_right)
+                }
+            }
+        }
+    }
+}
+
+pub trait Fork where Self: Sized {
+    fn fork(&self) -> (Self, Self);
+}
+
+impl Fork for Stamp {
+    fn fork(&self) -> (Stamp, Stamp) {
+        match *self {
+            Stamp {ref i, ref e} => {
+                if let IdTree::Node {left, right} = i.split() {
+                    let s1 = Stamp::new(*left, e.clone());
+                    let s2 = Stamp::new(*right, e.clone());
+                    (s1, s2)
+                } else {
+                    unreachable!()
+                }
+            }
+        }
+    }
+}
+
+pub trait Sum {
+    fn sum(&self, other: &Self) -> Self;
+}
+
+impl Sum for IdTree {
+    #[allow(non_shorthand_field_patterns)]
+    fn sum(&self, other: &IdTree) -> IdTree {
+        if *self == IdTree::zero() {
+            return other.clone();
+        } else if *other == IdTree::zero() {
+            return self.clone();
+        }
+
+        if let IdTree::Node {left: ref left1, right: ref right1} = *self {
+            if let IdTree::Node {left: ref left2, right: ref right2} = *other {
+                let new_left = Box::new(left1.sum(left2));
+                let new_right = Box::new(right1.sum(right2));
+                return IdTree::node(new_left, new_right).norm();
+            } else {
+                // corrupted tree?
+                unreachable!();
+            }
+        } else {
+            // corrupted tree?
+            unreachable!();
+        }
+    }
+}
+
+pub trait Join where Self: Sized {
+    fn join(&self, other: &Self) -> Self;
+}
+
+impl Join for Stamp {
+    fn join(&self, other: &Stamp) -> Stamp {
+        let sum_i = self.i.sum(&other.i);
+        let join_e = self.e.join(&other.e);
+        Stamp::new(sum_i, join_e)
+    }
+}
+
+impl Join for EventTree {
+    fn join(&self, other: &EventTree) -> EventTree {
+        match *self {
+            EventTree::Leaf {n: n1} => {
+                match *other {
+                    EventTree::Leaf {n: n2} => {
+                        EventTree::leaf(cmp::max(n1, n2))
+                    },
+                    EventTree::Node {..} => {
+                        let new_left = EventTree::node(n1, Box::new(EventTree::zero()), Box::new(EventTree::zero()));
+                        new_left.join(other)
+                    }
+                }
+            },
+            EventTree::Node {n: n1, left: ref left1, right: ref right1} => {
+                match *other {
+                    EventTree::Leaf {n: n2} => {
+                        let new_right = EventTree::node(n2, Box::new(EventTree::zero()), Box::new(EventTree::zero()));
+                        self.join(&new_right)
+                    },
+                    EventTree::Node {n: n2, left: ref left2, right: ref right2} => {
+                        if n1 > n2 {
+                            other.join(self)
+                        } else {
+                            let new_left = left1.join(&left2.clone().lift(n2 - n1));
+                            let new_right = right1.join(&right2.clone().lift(n2 - n1));
+                            EventTree::node(n1, Box::new(new_left), Box::new(new_right)).norm()
+                        }
+                    }
                 }
             }
         }
@@ -281,42 +381,42 @@ mod tests {
     fn norm_id_one_is_one() {
         let idt = IdTree::one();
         let nidt = idt.norm();
-        assert_eq!(*nidt, IdTree::one());
+        assert_eq!(nidt, IdTree::one());
     }
 
     #[test]
     fn norm_id_zero_is_zero() {
         let idt = IdTree::zero();
         let nidt = idt.norm();
-        assert_eq!(*nidt, IdTree::zero());
+        assert_eq!(nidt, IdTree::zero());
     }
 
     #[test]
     fn norm_id_0_0_is_0() {
         let idt = IdTree::node(Box::new(IdTree::zero()), Box::new(IdTree::zero()));
         let nidt = idt.norm();
-        assert_eq!(*nidt, IdTree::zero());
+        assert_eq!(nidt, IdTree::zero());
     }
 
     #[test]
     fn norm_id_1_1_is_1() {
         let idt = IdTree::node(Box::new(IdTree::one()), Box::new(IdTree::one()));
         let nidt = idt.norm();
-        assert_eq!(*nidt, IdTree::one());
+        assert_eq!(nidt, IdTree::one());
     }
 
     #[test]
     fn norm_id_0_1_is_0_1() {
         let idt = IdTree::node(Box::new(IdTree::one()), Box::new(IdTree::zero()));
         let nidt = idt.clone().norm();
-        assert_eq!(*nidt, idt);
+        assert_eq!(nidt, idt);
     }
 
     #[test]
     fn norm_id_1_1_1_is_1() {
         let idt = IdTree::node(Box::new(IdTree::one()), Box::new(IdTree::node(Box::new(IdTree::one()), Box::new(IdTree::one()))));
         let nidt = idt.clone().norm();
-        assert_eq!(*nidt, IdTree::one());
+        assert_eq!(nidt, IdTree::one());
     }
 
     // (2, 1, 1) ~=~ 3
@@ -324,7 +424,7 @@ mod tests {
     fn norm_e_one() {
         let et = EventTree::node(2, Box::new(EventTree::leaf(1)), Box::new(EventTree::leaf(1)));
         let net = et.clone().norm();
-        assert_eq!(*net, EventTree::leaf(3));
+        assert_eq!(net, EventTree::leaf(3));
     }
 
     // (2, (2, 1, 0), 3) ~=~ (4, (0, 1, 0), 1)
@@ -340,6 +440,6 @@ mod tests {
 
         let net = et.norm();
 
-        assert_eq!(*net, expected);
+        assert_eq!(net, expected);
     }
 }
