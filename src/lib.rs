@@ -95,6 +95,10 @@ impl EventTree {
 }
 
 impl Stamp {
+    pub fn seed() -> Stamp {
+        Stamp::new(IdTree::one(), EventTree::zero())
+    }
+
     pub fn new(i: IdTree, e: EventTree) -> Stamp {
         Stamp {
             i: i,
@@ -325,7 +329,7 @@ impl Split for IdTree {
     fn split(&self) -> IdTree {
         match *self {
             IdTree::Leaf {i} => {
-                if i {
+                if !i {
                     IdTree::node(Box::new(IdTree::zero()), Box::new(IdTree::zero()))
                 } else {
                     let new_left = Box::new(IdTree::node(Box::new(IdTree::one()), Box::new(IdTree::zero())));
@@ -525,5 +529,55 @@ mod tests {
         let net = et.norm();
 
         assert_eq!(net, expected);
+    }
+
+    #[test]
+    fn split_test() {
+        assert_eq!(IdTree::one().split(), IdTree::node(Box::new(IdTree::node(Box::new(IdTree::one()), Box::new(IdTree::zero()))), Box::new(IdTree::node(Box::new(IdTree::zero()), Box::new(IdTree::one())))));
+    }
+
+    #[test]
+    fn example() {
+        let seed = Stamp::seed();
+        let (l, r) = seed.fork();
+
+        assert_eq!(l, Stamp::new(IdTree::node(Box::new(IdTree::one()), Box::new(IdTree::zero())), EventTree::zero()));
+        assert_eq!(r, Stamp::new(IdTree::node(Box::new(IdTree::zero()), Box::new(IdTree::one())), EventTree::zero()));
+
+        let le = l.event();
+        let re = r.event();
+
+        assert_eq!(le, Stamp::new(IdTree::node(Box::new(IdTree::one()), Box::new(IdTree::zero())), EventTree::node(0, Box::new(EventTree::leaf(1)), Box::new(EventTree::zero()))));
+        assert_eq!(re, Stamp::new(IdTree::node(Box::new(IdTree::zero()), Box::new(IdTree::one())), EventTree::node(0, Box::new(EventTree::zero()), Box::new(EventTree::leaf(1)))));
+
+        let (lel, ler) = le.fork();
+
+        assert_eq!(lel, Stamp::new(IdTree::node(Box::new(IdTree::node(Box::new(IdTree::one()), Box::new(IdTree::zero()))), Box::new(IdTree::zero())), EventTree::node(0, Box::new(EventTree::leaf(1)), Box::new(EventTree::zero()))));
+        assert_eq!(ler, Stamp::new(IdTree::node(Box::new(IdTree::node(Box::new(IdTree::zero()), Box::new(IdTree::one()))), Box::new(IdTree::zero())), EventTree::node(0, Box::new(EventTree::leaf(1)), Box::new(EventTree::zero()))));
+
+        let ree = re.event();
+
+        assert_eq!(ree, Stamp::new(IdTree::node(Box::new(IdTree::zero()), Box::new(IdTree::one())), EventTree::node(0, Box::new(EventTree::zero()), Box::new(EventTree::leaf(2)))));
+
+        let lele = lel.event();
+
+        assert_eq!(lele, Stamp::new(IdTree::node(Box::new(IdTree::node(Box::new(IdTree::one()), Box::new(IdTree::zero()))), Box::new(IdTree::zero())), EventTree::node(0, Box::new(EventTree::node(1, Box::new(EventTree::leaf(1)), Box::new(EventTree::zero()))), Box::new(EventTree::zero()))));
+
+        let lerjree = ler.join(&ree);
+
+        assert_eq!(lerjree, Stamp::new(IdTree::node(Box::new(IdTree::node(Box::new(IdTree::zero()), Box::new(IdTree::one()))), Box::new(IdTree::one())), EventTree::node(1, Box::new(EventTree::zero()), Box::new(EventTree::leaf(1)))));
+
+        let (lerjreel, lerjreer) = lerjree.fork();
+
+        assert_eq!(lerjreel, Stamp::new(IdTree::node(Box::new(IdTree::node(Box::new(IdTree::zero()), Box::new(IdTree::one()))), Box::new(IdTree::zero())), EventTree::node(1, Box::new(EventTree::zero()), Box::new(EventTree::leaf(1)))));
+        assert_eq!(lerjreer, Stamp::new(IdTree::node(Box::new(IdTree::zero()), Box::new(IdTree::one())), EventTree::node(1, Box::new(EventTree::zero()), Box::new(EventTree::leaf(1)))));
+
+        let lelejlerjreel = lele.join(&lerjreel);
+
+        assert_eq!(lelejlerjreel, Stamp::new(IdTree::node(Box::new(IdTree::one()), Box::new(IdTree::zero())), EventTree::node(1, Box::new(EventTree::node(0, Box::new(EventTree::leaf(1)), Box::new(EventTree::zero()))), Box::new(EventTree::leaf(1)))));
+
+        let lelejlerjreele = lelejlerjreel.event();
+
+        assert_eq!(lelejlerjreele, Stamp::new(IdTree::node(Box::new(IdTree::one()), Box::new(IdTree::zero())), EventTree::leaf(2)));
     }
 }
