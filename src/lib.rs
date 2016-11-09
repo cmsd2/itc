@@ -100,6 +100,39 @@ impl EventTree {
             EventTree::Node { n, left, right } => EventTree::node(n - m, left, right)
         }
     }
+
+    pub fn join(&self, other: &EventTree) -> EventTree {
+        match *self {
+            EventTree::Leaf {n: n1} => {
+                match *other {
+                    EventTree::Leaf {n: n2} => {
+                        EventTree::leaf(cmp::max(n1, n2))
+                    },
+                    EventTree::Node {..} => {
+                        let new_left = EventTree::node(n1, Box::new(EventTree::zero()), Box::new(EventTree::zero()));
+                        new_left.join(other)
+                    }
+                }
+            },
+            EventTree::Node {n: n1, left: ref left1, right: ref right1} => {
+                match *other {
+                    EventTree::Leaf {n: n2} => {
+                        let new_right = EventTree::node(n2, Box::new(EventTree::zero()), Box::new(EventTree::zero()));
+                        self.join(&new_right)
+                    },
+                    EventTree::Node {n: n2, left: ref left2, right: ref right2} => {
+                        if n1 > n2 {
+                            other.join(self)
+                        } else {
+                            let new_left = left1.join(&left2.clone().lift(n2 - n1));
+                            let new_right = right1.join(&right2.clone().lift(n2 - n1));
+                            EventTree::node(n1, Box::new(new_left), Box::new(new_right)).norm()
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 impl Stamp {
@@ -180,18 +213,6 @@ impl Stamp {
                     unreachable!()
                 }
             }
-        }
-    }
-
-    pub fn event(&self) -> Stamp {
-        let filled_e = self.fill();
-
-        if filled_e.as_ref() != &self.e {
-            Stamp::new(self.i.clone(), filled_e.into_owned())
-        } else {
-            let (eprime, _c) = self.grow();
-
-            Stamp::new(self.i.clone(), eprime)
         }
     }
 }
@@ -373,26 +394,6 @@ impl Split for IdTree {
     }
 }
 
-pub trait Fork where Self: Sized {
-    fn fork(&self) -> (Self, Self);
-}
-
-impl Fork for Stamp {
-    fn fork(&self) -> (Stamp, Stamp) {
-        match *self {
-            Stamp {ref i, ref e} => {
-                if let IdTree::Node {left, right} = i.split() {
-                    let s1 = Stamp::new(*left, e.clone());
-                    let s2 = Stamp::new(*right, e.clone());
-                    (s1, s2)
-                } else {
-                    unreachable!()
-                }
-            }
-        }
-    }
-}
-
 pub trait Sum {
     fn sum(&self, other: &Self) -> Self;
 }
@@ -422,50 +423,63 @@ impl Sum for IdTree {
     }
 }
 
-pub trait Join where Self: Sized {
+pub trait IntervalTreeClock where Self: Sized {
+    
+    fn fork(&self) -> (Self, Self);
+    fn peek(&self) -> (Self, Self);
     fn join(&self, other: &Self) -> Self;
+    fn event(&self) -> Self;
+
+    fn send(&self) -> (Self, Self);
+    fn receive(&self, other: &Self) -> Self;
+    fn sync(&self, other: &Self) -> (Self, Self);
 }
 
-impl Join for Stamp {
+impl IntervalTreeClock for Stamp {
+    fn peek(&self) -> (Stamp, Stamp) {
+        let s1 = Stamp::new(IdTree::zero(), self.e.clone());
+        let s2 = Stamp::new(self.i.clone(), self.e.clone());
+        return (s1, s2)
+    }
+
+    fn fork(&self) -> (Stamp, Stamp) {
+        if let IdTree::Node {left, right} = self.i.split() {
+            let s1 = Stamp::new(*left, self.e.clone());
+            let s2 = Stamp::new(*right, self.e.clone());
+            (s1, s2)
+        } else {
+            unreachable!()
+        }
+    }
+
     fn join(&self, other: &Stamp) -> Stamp {
         let sum_i = self.i.sum(&other.i);
         let join_e = self.e.join(&other.e);
         Stamp::new(sum_i, join_e)
     }
-}
 
-impl Join for EventTree {
-    fn join(&self, other: &EventTree) -> EventTree {
-        match *self {
-            EventTree::Leaf {n: n1} => {
-                match *other {
-                    EventTree::Leaf {n: n2} => {
-                        EventTree::leaf(cmp::max(n1, n2))
-                    },
-                    EventTree::Node {..} => {
-                        let new_left = EventTree::node(n1, Box::new(EventTree::zero()), Box::new(EventTree::zero()));
-                        new_left.join(other)
-                    }
-                }
-            },
-            EventTree::Node {n: n1, left: ref left1, right: ref right1} => {
-                match *other {
-                    EventTree::Leaf {n: n2} => {
-                        let new_right = EventTree::node(n2, Box::new(EventTree::zero()), Box::new(EventTree::zero()));
-                        self.join(&new_right)
-                    },
-                    EventTree::Node {n: n2, left: ref left2, right: ref right2} => {
-                        if n1 > n2 {
-                            other.join(self)
-                        } else {
-                            let new_left = left1.join(&left2.clone().lift(n2 - n1));
-                            let new_right = right1.join(&right2.clone().lift(n2 - n1));
-                            EventTree::node(n1, Box::new(new_left), Box::new(new_right)).norm()
-                        }
-                    }
-                }
-            }
+    fn event(&self) -> Stamp {
+        let filled_e = self.fill();
+
+        if filled_e.as_ref() != &self.e {
+            Stamp::new(self.i.clone(), filled_e.into_owned())
+        } else {
+            let (eprime, _c) = self.grow();
+
+            Stamp::new(self.i.clone(), eprime)
         }
+    }
+
+    fn send(&self) -> (Stamp, Stamp) {
+        self.event().peek()
+    }
+
+    fn receive(&self, other: &Stamp) -> Stamp {
+        self.join(other).event()
+    }
+
+    fn sync(&self, other: &Stamp) -> (Stamp, Stamp) {
+        self.join(other).fork()
     }
 }
 
