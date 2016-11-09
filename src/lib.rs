@@ -1,3 +1,23 @@
+//! # Interval Tree Clocks
+//! 
+//! The itc crate implements Interval Tree Clocks as described in
+//! http://gsd.di.uminho.pt/members/cbm/ps/itc2008.pdf
+//! 
+//! # Usage:
+//! 
+//! ```
+//! use itc::*;
+//! let s = Stamp::seed();
+//! let (s1, s2) = s.fork();
+//! let s1 = s1.event();
+//! let s3 = s2.join(&s1);
+//! ```
+//!
+//! This module implements the 4 verbs: fork, event, join, peek,
+//! the 3 derived verbs: send, receive and sync,
+//! and also a simple ascii coding representation suitable for
+//! printing to stdout and use in protocols. 
+
 use std::cmp;
 use std::borrow::Cow;
 
