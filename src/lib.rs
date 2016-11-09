@@ -7,16 +7,25 @@
 //! 
 //! ```
 //! use itc::*;
+//!
 //! let s = Stamp::seed();
+//!
 //! let (s1, s2) = s.fork();
-//! let s1 = s1.event();
-//! let s3 = s2.join(&s1);
+//! let s1prime = s1.event();
+//! let s2prime = s2.event();
+//! let s3 = s2prime.join(&s1);
+//!
+//! assert!(s.leq(&s1));
+//! assert!(s1.leq(&s1prime));
+//! assert!(!s1prime.leq(&s2prime));
+//! assert!(s2prime.leq(&s3));
 //! ```
 //!
 //! This module implements the 4 verbs: fork, event, join, peek,
 //! the 3 derived verbs: send, receive and sync,
-//! and also a simple ascii coding representation suitable for
-//! printing to stdout and use in protocols. 
+//! and a partial ordering to establish causality / the happens-before relation.
+//! Also in the box is a simple ascii coding representation suitable
+//! for printing to stdout and use in protocols.
 
 use std::cmp;
 use std::borrow::Cow;
