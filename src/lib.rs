@@ -1,4 +1,5 @@
 use std::cmp;
+use std::fmt;
 use std::borrow::Cow;
 
 pub const N: u32 = 10000;
@@ -30,6 +31,38 @@ pub enum EventTree {
 pub struct Stamp {
     i: IdTree,
     e: EventTree
+}
+
+impl fmt::Display for IdTree {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            IdTree::Leaf {i} => {
+                write!(f, "{}", if i { 1 } else { 0 })
+            },
+            IdTree::Node {ref left, ref right} => {
+                write!(f, "({},{})", left, right)
+            }
+        }
+    }
+}
+
+impl fmt::Display for EventTree {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            EventTree::Leaf {n} => {
+                write!(f, "{}", n)
+            },
+            EventTree::Node {n, ref left, ref right} => {
+                write!(f, "({},{},{})", n, left, right)
+            }
+        }
+    }
+}
+
+impl fmt::Display for Stamp {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "({},{})", self.i, self.e)
+    }
 }
 
 impl IdTree {
@@ -464,6 +497,26 @@ impl Join for EventTree {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn id_tree_display() {
+        assert_eq!("0", format!("{}", IdTree::zero()));
+        assert_eq!("(0,(1,0))", format!("{}", IdTree::node(Box::new(IdTree::zero()), Box::new(IdTree::node(Box::new(IdTree::one()), Box::new(IdTree::zero()))))));
+    }
+
+    #[test]
+    fn event_tree_display() {
+        assert_eq!("0", format!("{}", EventTree::zero()));
+        assert_eq!("(0,1,(2,1,0))", format!("{}", EventTree::node(0, Box::new(EventTree::leaf(1)), Box::new(EventTree::node(2, Box::new(EventTree::leaf(1)), Box::new(EventTree::zero()))))));
+    }
+
+    #[test]
+    fn stamp_display() {
+        let i = IdTree::node(Box::new(IdTree::zero()), Box::new(IdTree::node(Box::new(IdTree::one()), Box::new(IdTree::zero()))));
+        let e = EventTree::node(0, Box::new(EventTree::leaf(1)), Box::new(EventTree::node(2, Box::new(EventTree::leaf(1)), Box::new(EventTree::zero()))));
+        let s = Stamp::new(i, e);
+        assert_eq!("((0,(1,0)),(0,1,(2,1,0)))", format!("{}", s));
+    }
 
     #[test]
     fn norm_id_one_is_one() {
