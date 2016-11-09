@@ -1,6 +1,9 @@
 use std::cmp;
 use std::fmt;
+use std::num;
+use std::str::FromStr;
 use std::borrow::Cow;
+use std::iter::Peekable;
 
 pub const N: u32 = 10000;
 
@@ -46,6 +49,85 @@ impl fmt::Display for IdTree {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum ParseError {
+    EndOfString,
+    Error,
+    UnexpectedChar(char),
+    ParseIntError(num::ParseIntError)
+}
+
+impl From<num::ParseIntError> for ParseError {
+    fn from(e: num::ParseIntError) -> ParseError {
+        ParseError::ParseIntError(e)
+    }
+}
+
+pub struct Parser;
+
+impl Parser {
+    pub fn take_number<I>(i: &mut Peekable<I>) -> Result<u32, ParseError> where I: Iterator<Item=char> {
+        let mut s = String::new();
+
+        loop {
+            match i.peek().map(|c| *c) {
+                Some(c) if c >= '0' && c <= '9' => {
+                    i.next();
+                    s.push(c);
+                },
+                _ => {
+                    break;
+                }
+            }
+        }
+        
+        s.parse::<u32>().map_err(ParseError::from)
+    }
+
+    pub fn take_char<I>(i: &mut I, expected: char) -> Result<(), ParseError> where I: Iterator<Item=char> {
+        match i.next() {
+            None => {
+                Err(ParseError::EndOfString)
+            },
+            Some(c) if c == expected => {
+                Ok(())
+            },
+            Some(c) => {
+                Err(ParseError::UnexpectedChar(c))
+            }
+        }
+    }
+
+    pub fn take_id_tree<I>(i: &mut Peekable<I>) -> Result<IdTree, ParseError> where I: Iterator<Item=char> {
+        match i.peek().map(|c| *c) {
+            Some('(') => {
+                try!(Self::take_char(i, '('));
+                let left = try!(Self::take_id_tree(i));
+                try!(Self::take_char(i, ','));
+                let right = try!(Self::take_id_tree(i));
+                try!(Self::take_char(i, ')'));
+                Ok(IdTree::node(Box::new(left), Box::new(right)))
+            },
+            None => {
+                return Err(ParseError::EndOfString);
+            },
+            _ => {
+                let n = try!(Self::take_number(i));
+                Ok(IdTree::leaf(n != 0))
+            }
+        }
+    }
+}
+
+impl FromStr for IdTree {
+    type Err = ParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut p = s.chars().peekable();
+        Parser::take_id_tree(&mut p)
+    } 
+}
+
 impl fmt::Display for EventTree {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
@@ -66,6 +148,12 @@ impl fmt::Display for Stamp {
 }
 
 impl IdTree {
+    pub fn leaf(i: bool) -> IdTree {
+        IdTree::Leaf {
+            i: i
+        }
+    }
+
     pub fn zero() -> IdTree {
         IdTree::Leaf {
             i: false
@@ -496,6 +584,7 @@ impl Join for EventTree {
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
     use super::*;
 
     #[test]
@@ -632,5 +721,33 @@ mod tests {
         let lelejlerjreele = lelejlerjreel.event();
 
         assert_eq!(lelejlerjreele, Stamp::new(IdTree::node(Box::new(IdTree::one()), Box::new(IdTree::zero())), EventTree::leaf(2)));
+    }
+    
+    #[test]
+    fn test_parser_take_number() {
+        let mut p = "0".chars().peekable();
+        assert_eq!(0, Parser::take_number(&mut p).expect("parse number"));
+
+        let mut p = "1234".chars().peekable();
+        assert_eq!(1234, Parser::take_number(&mut p).expect("parse number"));
+
+        let mut p = "1234,(foo)".chars().peekable();
+        assert_eq!(1234, Parser::take_number(&mut p).expect("parse number"));
+    }
+
+    #[test]
+    fn test_parser_take_id_tree() {
+        assert_eq!(IdTree::zero(), IdTree::from_str("0").expect("parse idtree"));
+        assert_eq!(IdTree::one(), IdTree::from_str("1").expect("parse idtree"));
+        assert_eq!(IdTree::node(Box::new(IdTree::one()), Box::new(IdTree::zero())), IdTree::from_str("(1,0)").expect("parse idtree"));
+        assert_eq!(IdTree::node(Box::new(IdTree::one()), Box::new(IdTree::zero())), IdTree::from_str("(1,0),foo").expect("parse idtree"));
+    }
+
+    #[test]
+    fn test_parser_id_string_round_trip() {
+        let s1 = "(1,(0,1))";
+        let i = IdTree::from_str(s1).expect("parse idtree");
+        let s2 = i.to_string();
+        assert_eq!(s1, s2);
     }
 }
