@@ -5,5 +5,6 @@ authors = ["Chris Dawes <cmsd2@cantab.net>"]
 license = "Apache-2.0"
 description = "Interval Tree Clocks as described in the itc2008 paper."
 repository = "https://github.com/cmsd2/itc"
+documentation = "https://docs.rs/itc"
 
 [dependencies]
