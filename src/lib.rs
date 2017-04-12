@@ -31,8 +31,9 @@ use std::cmp;
 use std::borrow::Cow;
 
 pub mod ascii_coding;
+pub mod cost;
 
-pub const N: u32 = 10000;
+use cost::*;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum IdTree {
@@ -209,15 +210,15 @@ impl Stamp {
     }
 
     // returns event tree and cost
-    pub fn grow(&self) -> (EventTree, u32) {
+    pub fn grow(&self) -> (EventTree, Cost) {
         match self.e {
             EventTree::Leaf {n} => {
                 if self.i == IdTree::one() {
-                    (EventTree::leaf(n + 1), 0)
+                    (EventTree::leaf(n + 1), Cost::zero())
                 } else {
                     let new_e = EventTree::node(n, Box::new(EventTree::zero()), Box::new(EventTree::zero()));
                     let (eprime, c) = Stamp::new(self.i.clone(), new_e).grow();
-                    (eprime, c + N)
+                    (eprime, c.shift())
                 }
             },
             EventTree::Node {n, left: ref e_left, right: ref e_right} => {
