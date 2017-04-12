@@ -64,3 +64,35 @@ impl Cost {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::Cost;
+
+    #[test]
+    fn test_cmp_small() {
+        let a = Cost::zero();
+        let b = a.clone() + 1;
+
+        assert!(a < b);
+        assert!(b > a);
+    }
+
+    #[test]
+    fn test_cmp_big() {
+        let a = Cost::zero().shift() + 1;
+        let b = (Cost::zero() + 1).shift();
+
+        assert!(a < b);
+        assert!(b > a);
+    }
+
+    #[test]
+    fn test_cmp_mixed() {
+        let a = Cost::zero() + 1;
+        let b = (Cost::zero() + 1).shift();
+
+        assert!(a < b);
+        assert!(b > a);
+    }
+}
