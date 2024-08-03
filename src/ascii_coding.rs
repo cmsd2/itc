@@ -70,18 +70,18 @@ impl Parser {
     pub fn take_id_tree<I>(i: &mut Peekable<I>) -> Result<IdTree, ParseError> where I: Iterator<Item=char> {
         match i.peek().map(|c| *c) {
             Some('(') => {
-                try!(Self::take_char(i, '('));
-                let left = try!(Self::take_id_tree(i));
-                try!(Self::take_char(i, ','));
-                let right = try!(Self::take_id_tree(i));
-                try!(Self::take_char(i, ')'));
+                Self::take_char(i, '(')?;
+                let left = Self::take_id_tree(i)?;
+                Self::take_char(i, ',')?;
+                let right = Self::take_id_tree(i)?;
+                Self::take_char(i, ')')?;
                 Ok(IdTree::node(Box::new(left), Box::new(right)))
             },
             None => {
                 Err(ParseError::EndOfString)
             },
             _ => {
-                let n = try!(Self::take_number(i));
+                let n = Self::take_number(i)?;
                 Ok(IdTree::leaf(n != 0))
             }
         }
@@ -90,31 +90,31 @@ impl Parser {
     pub fn take_event_tree<I>(i: &mut Peekable<I>) -> Result<EventTree, ParseError> where I: Iterator<Item=char> {
         match i.peek().map(|c| *c) {
             Some('(') => {
-                try!(Self::take_char(i, '('));
-                let n = try!(Self::take_number(i));
-                try!(Self::take_char(i, ','));
-                let left = try!(Self::take_event_tree(i));
-                try!(Self::take_char(i, ','));
-                let right = try!(Self::take_event_tree(i));
-                try!(Self::take_char(i, ')'));
+                Self::take_char(i, '(')?;
+                let n = Self::take_number(i)?;
+                Self::take_char(i, ',')?;
+                let left = Self::take_event_tree(i)?;
+                Self::take_char(i, ',')?;
+                let right = Self::take_event_tree(i)?;
+                Self::take_char(i, ')')?;
                 Ok(EventTree::node(n, Box::new(left), Box::new(right)))
             },
             None => {
                 Err(ParseError::EndOfString)
             },
             _ => {
-                let n = try!(Self::take_number(i));
+                let n = Self::take_number(i)?;
                 Ok(EventTree::leaf(n))
             }
         }
     }
 
     pub fn take_stamp<I>(p: &mut Peekable<I>) -> Result<Stamp, ParseError> where I: Iterator<Item=char> {
-        try!(Self::take_char(p, '('));
-        let i = try!(Self::take_id_tree(p));
-        try!(Self::take_char(p, ','));
-        let e = try!(Self::take_event_tree(p));
-        try!(Self::take_char(p, ')'));
+        Self::take_char(p, '(')?;
+        let i = Self::take_id_tree(p)?;
+        Self::take_char(p, ',')?;
+        let e = Self::take_event_tree(p)?;
+        Self::take_char(p, ')')?;
         Ok(Stamp::new(i, e))
     }
 }
